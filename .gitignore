@@ -1,0 +1,54 @@
+# Banco de dados SQLite local 
+data/*.db
+data/*.sqlite3
+
+# Backups gerados pelo sistema
+*backup_treino_funcional_*.db
+
+# Arquivos exportados
+*.pdf
+*.txt
+*.json
+!requirements.txt  # Garante que o requirements.txt não seja ignorado pela regra acima
+
+# Cache e binários do Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Ambientes Virtuais 
+venv/
+.venv/
+env/
+.env
+ENV/
+
+# Ferramentas de empacotamento 
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# VS Code
+.vscode/
+
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+/test
