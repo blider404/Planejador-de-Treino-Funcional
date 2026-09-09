@@ -24,3 +24,4 @@ class ItemCircuito:
     grupo: str = ""
     tipo: str = ""
     nivel: str = ""
+    coluna: int = 1  # <-- Novo atributo para organizar as estações nas colunas

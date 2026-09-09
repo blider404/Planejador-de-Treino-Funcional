@@ -5,6 +5,7 @@ import customtkinter as ctk
 import webbrowser
 import os
 import sys
+import math
 
 from database.models import Exercicio, ItemCircuito
 from utils.helpers import formatar_tempo, calcular_totais_circuito
@@ -211,7 +212,6 @@ class ExerciciosTab(ctk.CTkFrame):
             self.atualizar_lista()
             self.app.tabs['circuitos'].atualizar_disponiveis()
 
-
 class CircuitosTab(ctk.CTkFrame):
     def __init__(self, master, app):
         super().__init__(master, fg_color="transparent")
@@ -316,7 +316,7 @@ class CircuitosTab(ctk.CTkFrame):
         self.itens_circuito.append(ItemCircuito(
             exercicio_id=ex['id'], nome=ex['nome'], tempo=ex['tempo_padrao'],
             descanso_individual=desc_global, grupo=ex['grupo_muscular'],
-            tipo=ex['tipo'], nivel=ex['nivel']
+            tipo=ex['tipo'], nivel=ex['nivel'], coluna=1 # Sempre adiciona na coluna 1
         ))
         self.atualizar_montador()
 
@@ -324,10 +324,32 @@ class CircuitosTab(ctk.CTkFrame):
         self.itens_circuito.pop(idx)
         self.atualizar_montador()
 
+    def _mover_coluna(self, idx, direcao):
+        """Move o exercício para a coluna da esquerda ou direita"""
+        item = self.itens_circuito[idx]
+        nova_coluna = item.coluna + direcao
+        if 1 <= nova_coluna <= self.num_colunas:
+            item.coluna = nova_coluna
+            self.atualizar_montador()
+
     def _mover_item(self, idx, direcao):
-        n_idx = idx + direcao
-        if 0 <= n_idx < len(self.itens_circuito):
-            self.itens_circuito[idx], self.itens_circuito[n_idx] = self.itens_circuito[n_idx], self.itens_circuito[idx]
+        """Sobe ou desce o exercício dentro da própria coluna dele"""
+        item_atual = self.itens_circuito[idx]
+        alvo_idx = -1
+        
+        if direcao == -1: # Tentar subir
+            for i in range(idx - 1, -1, -1):
+                if self.itens_circuito[i].coluna == item_atual.coluna:
+                    alvo_idx = i
+                    break
+        else: # Tentar descer
+            for i in range(idx + 1, len(self.itens_circuito)):
+                if self.itens_circuito[i].coluna == item_atual.coluna:
+                    alvo_idx = i
+                    break
+
+        if alvo_idx != -1:
+            self.itens_circuito[idx], self.itens_circuito[alvo_idx] = self.itens_circuito[alvo_idx], self.itens_circuito[idx]
             self.atualizar_montador()
 
     def _update_val(self, idx, attr, val):
@@ -342,26 +364,44 @@ class CircuitosTab(ctk.CTkFrame):
         for w in self.scroll_circ.winfo_children(): 
             w.destroy()
             
-        # Limpa o mapeamento de colunas antigo e aplica o novo layout grid dinâmico
         for c in range(5):
             self.scroll_circ.grid_columnconfigure(c, weight=0)
         for c in range(self.num_colunas):
             self.scroll_circ.grid_columnconfigure(c, weight=1)
+            
+        if not self.itens_circuito:
+            self._atualizar_rodape()
+            return
+            
+        # Dicionário para controlar em qual linha estamos para cada coluna
+        linhas_por_coluna = {c: 0 for c in range(1, self.num_colunas + 1)}
         
         for i, it in enumerate(self.itens_circuito):
-            row = i // self.num_colunas
-            col = i % self.num_colunas
+            # Garante que o item não vai sumir se você mudar para um layout de menos colunas
+            if it.coluna > self.num_colunas: it.coluna = self.num_colunas
+            elif it.coluna < 1: it.coluna = 1
+            
+            col_idx = it.coluna - 1
+            row_idx = linhas_por_coluna[it.coluna]
+            linhas_por_coluna[it.coluna] += 1
             
             card = ctk.CTkFrame(self.scroll_circ, fg_color=COR_FUNDO, corner_radius=8, border_width=1, border_color="#333")
-            card.grid(row=row, column=col, sticky="ew", pady=4, padx=5)
+            card.grid(row=row_idx, column=col_idx, sticky="ew", pady=4, padx=5)
             
-            # Header do Card (Ordem, Setas e Fechar)
+            # Header do Card com os NOVOS BOTÕES de navegação
             top_card = ctk.CTkFrame(card, fg_color="transparent")
             top_card.pack(fill="x", padx=8, pady=(8, 0))
             
             ctk.CTkLabel(top_card, text=f"{i+1:02d}", text_color=COR_DESTAQUE, font=ctk.CTkFont(weight="bold")).pack(side="left")
-            ctk.CTkButton(top_card, text="↑", width=25, fg_color="transparent", border_width=1, command=lambda idx=i: self._mover_item(idx, -1)).pack(side="left", padx=(10,2))
+            
+            # Botões: Mover para Esquerda e Direita (◀ ▶)
+            ctk.CTkButton(top_card, text="◀", width=25, fg_color="transparent", border_width=1, command=lambda idx=i: self._mover_coluna(idx, -1)).pack(side="left", padx=(10,2))
+            ctk.CTkButton(top_card, text="▶", width=25, fg_color="transparent", border_width=1, command=lambda idx=i: self._mover_coluna(idx, 1)).pack(side="left", padx=(0,10))
+            
+            # Botões: Subir e Descer dentro da coluna (↑ ↓)
+            ctk.CTkButton(top_card, text="↑", width=25, fg_color="transparent", border_width=1, command=lambda idx=i: self._mover_item(idx, -1)).pack(side="left", padx=(0,2))
             ctk.CTkButton(top_card, text="↓", width=25, fg_color="transparent", border_width=1, command=lambda idx=i: self._mover_item(idx, 1)).pack(side="left")
+            
             ctk.CTkButton(top_card, text="✕", width=25, fg_color="transparent", text_color=COR_ALERTA, hover_color=COR_ALERTA, command=lambda idx=i: self._remover_item(idx)).pack(side="right")
             
             # Nome do Exercício
@@ -390,7 +430,6 @@ class CircuitosTab(ctk.CTkFrame):
         t_trab, t_desc, total = calcular_totais_circuito(self.itens_circuito, r, dr)
         self.lbl_totais.configure(text=f"Trabalho: {formatar_tempo(t_trab)} | Descanso: {formatar_tempo(t_desc)} | ⏱ TOTAL: {formatar_tempo(total)}")
         
-        # Sincronizar Análise
         if 'analise' in self.app.tabs:
             self.app.tabs['analise'].atualizar_analise(self.itens_circuito, r, dr)
 
@@ -419,6 +458,7 @@ class CircuitosTab(ctk.CTkFrame):
         self.entry_desc_round.delete(0, "end"); self.entry_desc_round.insert(0, str(circuito['descanso_rounds']))
         self.itens_circuito = itens
         self.atualizar_montador()
+
 
 class AnaliseTab(ctk.CTkFrame):
     def __init__(self, master, app):

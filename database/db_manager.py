@@ -58,7 +58,8 @@ class DatabaseManager:
                 ("exercicios", "nivel", "TEXT", "'Iniciante'"),
                 ("exercicios", "padrao_movimento", "TEXT", "'Outro'"),
                 ("circuitos", "tipo_treino", "TEXT", "'Circuito'"),
-                ("circuito_exercicios", "descanso_individual", "INTEGER", "10")
+                ("circuito_exercicios", "descanso_individual", "INTEGER", "10"),
+                ("circuito_exercicios", "coluna", "INTEGER", "1")  # <-- Nova coluna para o controle do layout
             ]
             
             for tabela, coluna, tipo, default in migracoes:
@@ -128,10 +129,11 @@ class DatabaseManager:
                 circuito_id = cur.lastrowid
 
             for ordem, item in enumerate(itens):
+                # Inclui o parâmetro 'coluna' no salvamento do banco
                 conn.execute(
-                    "INSERT INTO circuito_exercicios (circuito_id, exercicio_id, ordem, tempo, descanso_individual) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (circuito_id, item.exercicio_id, ordem, item.tempo, item.descanso_individual),
+                    "INSERT INTO circuito_exercicios (circuito_id, exercicio_id, ordem, tempo, descanso_individual, coluna) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (circuito_id, item.exercicio_id, ordem, item.tempo, item.descanso_individual, item.coluna),
                 )
             return circuito_id
 
@@ -142,16 +144,17 @@ class DatabaseManager:
     def carregar_circuito(self, circuito_id):
         with self._conn() as conn:
             circuito = conn.execute("SELECT * FROM circuitos WHERE id=?", (circuito_id,)).fetchone()
+            # Busca a coluna configurada para cada exercício
             itens_db = conn.execute("""
-                   SELECT ce.tempo, ce.descanso_individual, e.id as ex_id, e.nome, e.grupo_muscular, e.tipo, e.nivel
-                   FROM circuito_exercicios ce
-                   JOIN exercicios e ON e.id = ce.exercicio_id
-                   WHERE ce.circuito_id = ? ORDER BY ce.ordem
-               """, (circuito_id,)).fetchall()
+                    SELECT ce.tempo, ce.descanso_individual, ce.coluna, e.id as ex_id, e.nome, e.grupo_muscular, e.tipo, e.nivel
+                    FROM circuito_exercicios ce
+                    JOIN exercicios e ON e.id = ce.exercicio_id
+                    WHERE ce.circuito_id = ? ORDER BY ce.ordem
+                """, (circuito_id,)).fetchall()
             itens = [ItemCircuito(
                 exercicio_id=r["ex_id"], nome=r["nome"], tempo=r["tempo"],
                 descanso_individual=r["descanso_individual"], grupo=r["grupo_muscular"],
-                tipo=r["tipo"], nivel=r["nivel"]
+                tipo=r["tipo"], nivel=r["nivel"], coluna=r["coluna"] # Adicionado aqui para resgatar a coluna correta
             ) for r in itens_db]
             return circuito, itens
 
